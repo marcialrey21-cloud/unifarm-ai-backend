@@ -14,8 +14,8 @@ from scipy.optimize import linprog
 # ==========================================
 # 1. DATABASE CONFIGURATION (SUPABASE)
 # ==========================================
-SUPABASE_URL = "https://xusbqbspwmllgabmbzcn.supabase.co"
-SUPABASE_KEY = "YOUR_SUPABASE_KEY_HERE" # <-- Paste your Supabase anon key here!
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -66,7 +66,7 @@ async def get_inventory():
 @tool
 def get_weather_data(location: str) -> dict:
     """Fetch real-time weather. Use this when the user asks about the weather."""
-    OPENWEATHER_API_KEY = "PASTE_YOUR_API_KEY_HERE" # <-- Get your free API key from OpenWeatherMap and paste it here!
+    OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY") # <-- Get your free API key from OpenWeatherMap and paste it here!
     url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={OPENWEATHER_API_KEY}&units=metric"
     try:
         response = requests.get(url)
@@ -196,7 +196,7 @@ def calculate_scientific_feed(
 
 farm_tools = [get_weather_data, calculate_scientific_feed]
 
-AZURE_API_KEY = "PASTE_YOUR_API_KEY_HERE" # <-- Paste your key here!
+AZURE_API_KEY = os.getenv("AZURE_API_KEY")<-- Paste your key here!
 
 llm = AzureChatOpenAI(
     azure_endpoint="https://cropadvisoragent-resource.cognitiveservices.azure.com/",
