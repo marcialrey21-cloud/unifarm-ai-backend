@@ -272,6 +272,10 @@ async def chat_with_agent(query: FarmerQuery):
             
             advanced_expert_prompt = """
             You are a leading agricultural pathologist.
+            
+            First, provide a 'Quick Summary' (2 to 3 sentences maximum) stating the most likely plant, the most likely disease, and the immediate recommended action.
+            Then, you MUST insert this exact text on a new line: ---DETAILS---
+            Finally, below that delimiter, provide your comprehensive, step-by-step analysis:
             1. PHASE 1: IMAGE VERIFICATION.
             2. PHASE 2: BOTANICAL CLASSIFICATION.
             3. PHASE 3: DISEASE DIAGNOSIS.
