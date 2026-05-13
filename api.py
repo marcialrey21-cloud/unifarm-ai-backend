@@ -36,12 +36,17 @@ class FarmerQuery(BaseModel):
     message: str
     image_base64: Optional[str] = None
 
+# NEW: Model to catch the data sent from the mobile app's Formulate screen
+class FormulateQuery(BaseModel):
+    target_protein: str
+    ingredients: str
+
 @app.get("/")
 async def home():
     return {"message": "Welcome to the Uni-Farm Hub API! The server is online."}
 
 # ==========================================
-# NEW ENDPOINT: Fetch Inventory
+# ENDPOINT: Fetch Inventory
 # ==========================================
 @app.get("/api/inventory")
 async def get_inventory():
@@ -66,7 +71,7 @@ async def get_inventory():
 @tool
 def get_weather_data(location: str) -> dict:
     """Fetch real-time weather. Use this when the user asks about the weather."""
-    OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY") # <-- Get your free API key from OpenWeatherMap and paste it here!
+    OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY") 
     url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={OPENWEATHER_API_KEY}&units=metric"
     try:
         response = requests.get(url)
@@ -113,10 +118,6 @@ def calculate_scientific_feed(
 
         num_ing = len(ingredients)
 
-        # --- SURGICAL UPDATE: The Smart Retry Loop ---
-        # If the strict math fails, we slowly lower the energy and protein requirements 
-        # up to 3 times to find a "practical" field formula instead of crashing.
-        
         attempts = [
             {"cp": target_cp, "energy": min_energy_kcal, "note": "Optimal Scientific Formulation"},
             {"cp": target_cp * 0.95, "energy": min_energy_kcal * 0.95, "note": "Relaxed Formulation (Slightly lower CP & Energy)"},
@@ -149,12 +150,11 @@ def calculate_scientific_feed(
             if res.success:
                 winning_res = res
                 winning_attempt = attempt
-                break # Exit the loop as soon as we find math that works
+                break 
 
         if not winning_res:
              return {"error": "Math is impossible even with relaxed constraints. You MUST include high-energy sources like 'Crude Palm Oil' or high-protein like 'Soybean Meal (44%)' to make this work."}
 
-        # Process the winning recipe
         recipe = {}
         total_cost = 0
         actual_cp = actual_energy = actual_ca = actual_lys = 0
@@ -196,7 +196,8 @@ def calculate_scientific_feed(
 
 farm_tools = [get_weather_data, calculate_scientific_feed]
 
-AZURE_API_KEY = os.getenv("AZURE_API_KEY")<-- Paste your key here!
+# Fixed Syntax Error Here
+AZURE_API_KEY = os.getenv("AZURE_API_KEY")
 
 llm = AzureChatOpenAI(
     azure_endpoint="https://cropadvisoragent-resource.cognitiveservices.azure.com/",
@@ -229,13 +230,36 @@ system_instruction = SystemMessage(content=(
     
     "Note: The calculate_scientific_feed tool automatically injects balancing minerals in the background. Do not halt the conversation to ask for string confirmations. Just run the tool and present the final recipe. "
     
-    # --- SURGICAL UPDATE: Strict Language & Currency Control ---
     "CRITICAL FORMATTING RULE: ALWAYS use English or Taglish for your final response. NEVER use Arabic or other foreign alphabets. When formatting currency, strictly use 'PHP' or the '₱' symbol (e.g., '₱24.12 per kg'). Do not add translated words to numbers."
 ))
 
 # ==========================================
-# 5. THE API ENDPOINT
+# 5. THE API ENDPOINTS
 # ==========================================
+
+# NEW: The dedicated endpoint for the mobile app's Formulate screen!
+@app.post("/api/formulate")
+async def formulate_feed_api(query: FormulateQuery):
+    try:
+        # We build a prompt for your agent using the data sent from the phone
+        agent_prompt = f"""
+        A farmer has requested a feed formulation.
+        Target Crude Protein: {query.target_protein}%
+        Available Ingredients: {query.ingredients}
+        
+        Please use your calculate_scientific_feed tool to formulate a 100kg batch based on these parameters. 
+        Once the tool succeeds, present the final scientific recipe cleanly so it looks great on a mobile screen.
+        """
+        
+        # Send it to your existing, brilliant agent
+        user_message = HumanMessage(content=agent_prompt)
+        response = unifarm_agent.invoke({"messages": [system_instruction, user_message]})
+        final_message = response["messages"][-1].content
+        
+        return {"recipe": final_message}
+    except Exception as e:
+        print(f"[Formulate Error] -> {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def chat_with_agent(query: FarmerQuery):
