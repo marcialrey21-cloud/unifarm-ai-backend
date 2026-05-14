@@ -272,7 +272,7 @@ async def chat_with_agent(query: FarmerQuery):
             
             advanced_expert_prompt = """
             You are a leading agricultural pathologist.
-            
+
             First, provide a 'Quick Summary' (2 to 3 sentences maximum) stating the most likely plant, the most likely disease, and the immediate recommended action.
             Then, you MUST insert this exact text on a new line: ---DETAILS---
             Finally, below that delimiter, provide your comprehensive, step-by-step analysis:
@@ -300,3 +300,75 @@ async def chat_with_agent(query: FarmerQuery):
     except Exception as e:
         print(f"[Fatal Error] -> {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==========================================
+# NEW ENDPOINT: Advanced AI Predictor
+# ==========================================
+
+# Data model to catch the diverse inputs from the React Native app
+class PredictAdvancedQuery(BaseModel):
+    category: str
+    temp_celsius: float
+    area_hectares: Optional[float] = 0.0
+    rainfall_mm: Optional[float] = 0.0
+    fertilizer_kg: Optional[float] = 0.0
+    head_count: Optional[int] = 0
+    feed_kg: Optional[float] = 0.0
+
+@app.post("/api/predict/advanced")
+async def predict_advanced(query: PredictAdvancedQuery):
+    try:
+        math_yield_text = ""
+        prompt_context = ""
+        
+        # 1. The Mathematical Baseline (Deterministic)
+        if query.category in ['corn', 'rice', 'vegetables']:
+            # Assuming a standard average of ~4.5 tons per hectare as a baseline
+            base_yield = float(query.area_hectares) * 4.5
+            # Simple math modifiers based on inputs
+            if query.rainfall_mm < 50:
+                base_yield *= 0.7  # Drought penalty
+            if query.fertilizer_kg > 100:
+                base_yield *= 1.1  # Fertilizer bonus
+                
+            predicted_tons = round(base_yield, 2)
+            math_yield_text = f"{predicted_tons} Tons"
+            prompt_context = f"Crop: {query.category}, Area: {query.area_hectares}ha, Rainfall: {query.rainfall_mm}mm, Fertilizer: {query.fertilizer_kg}kg, Temp: {query.temp_celsius}°C."
+            
+        else:
+            # For Livestock, Poultry, Tilapia
+            # Assuming survival rate math based on basic parameters
+            survival_rate = 0.90
+            if query.temp_celsius > 32:
+                survival_rate = 0.80 # Heat stress penalty
+                
+            surviving_heads = int(float(query.head_count) * survival_rate)
+            math_yield_text = f"{surviving_heads} Heads (Est. Survival)"
+            prompt_context = f"Animals: {query.category}, Starting Heads: {query.head_count}, Feed Available: {query.feed_kg}kg, Temp: {query.temp_celsius}°C."
+
+        # 2. The Azure OpenAI Generative Insight
+        agent_prompt = f"""
+        You are an expert agronomist for Uni-Farm Hub in the Philippines.
+        I have mathematically calculated the baseline yield for the following scenario:
+        Context: {prompt_context}
+        Mathematical Yield: {math_yield_text}
+        
+        Provide a brief, professional 'AI Insight' (2-3 sentences max) to advise the farmer on this scenario. 
+        Focus on the temperature, feed/fertilizer adequacy, or rainfall risks. 
+        Do NOT write a greeting, just provide the insight directly.
+        """
+        
+        user_message = HumanMessage(content=agent_prompt)
+        # Use your existing llm connection defined earlier in api.py
+        response = llm.invoke([user_message])
+        ai_advice = response.content
+        
+        # 3. Return the hybrid payload back to the mobile app
+        return {
+            "predicted_yield": math_yield_text,
+            "ai_insight": ai_advice
+        }
+
+    except Exception as e:
+        print(f"[Prediction Error] -> {e}")
+        raise HTTPException(status_code=500, detail=str(e))        
