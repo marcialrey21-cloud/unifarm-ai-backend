@@ -323,9 +323,18 @@ async def predict_advanced(query: PredictAdvancedQuery):
         
         # 1. The Mathematical Baseline (Deterministic)
         if query.category in ['corn', 'rice', 'vegetables']:
-            # Assuming a standard average of ~4.5 tons per hectare as a baseline
-            base_yield = float(query.area_hectares) * 4.5
-            # Simple math modifiers based on inputs
+            
+            # Enterprise Baseline Yields (Metric Tons per Hectare in the Philippines)
+            if query.category == 'corn':
+                baseline_per_ha = 4.23  # Official average for Yellow Corn
+            elif query.category == 'rice':
+                baseline_per_ha = 4.17  # Official average for Rice
+            else:
+                baseline_per_ha = 3.50  # Generic average for vegetables/other
+                
+            base_yield = float(query.area_hectares) * baseline_per_ha
+            
+            # Simple environmental modifiers
             if query.rainfall_mm < 50:
                 base_yield *= 0.7  # Drought penalty
             if query.fertilizer_kg > 100:
@@ -337,7 +346,6 @@ async def predict_advanced(query: PredictAdvancedQuery):
             
         else:
             # For Livestock, Poultry, Tilapia
-            # Assuming survival rate math based on basic parameters
             survival_rate = 0.90
             if query.temp_celsius > 32:
                 survival_rate = 0.80 # Heat stress penalty
